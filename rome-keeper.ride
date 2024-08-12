@@ -2,7 +2,7 @@
 {-# CONTENT_TYPE DAPP #-}
 {-# SCRIPT_TYPE ACCOUNT #-}
 
-let VERSION = "RK-1.0.0"
+let VERSION = "RK-1.0.1"
 
 let Scale8 = 100000000
 
@@ -26,10 +26,10 @@ func getBalance(assetIdStr: String) = {
 
 
 func getTargetReturn(assetFrom: String, assetsRatio: Int) = {
-  let ratios = getStringValue("setup_targets_"+assetFrom).split(";") # "80000000,103000000;50000000;105000000;30000000,110000000;10000000,120000000;0,200000000"
+  let ratios = getStringValue("setup_targets_"+assetFrom).split(";") # "80000000,103000000;50000000,105000000;30000000,110000000;10000000,120000000;0,200000000"
   func f(accum: Int, next: String) = {
     let li = next.split(",")
-    if (assetsRatio < li[0].parseIntValue()) then {li[1]} else {accum}
+    if (assetsRatio < li[0].parseIntValue()) then {li[1].parseIntValue()} else {accum}
   }
 
   FOLD<10>(ratios, 100000000, f)
@@ -41,10 +41,8 @@ func init() = {
   if (i.caller != this) then {throw("available for self-invoke only")}
   else {
     [
-      StringEntry("setup_targets_9wc3LXNA4TEBsXyKtoLE9mrbDD7WMHXvXrCjZvabLAsi", "80000000,103000000;50000000;105000000;30000000,110000000;10000000,120000000;0,200000000"),
-      IntegerEntry("global_balance_9wc3LXNA4TEBsXyKtoLE9mrbDD7WMHXvXrCjZvabLAsi", Scale8),
-      StringEntry("setup_targets_AP4Cb5xLYGH6ZigHreCZHoXpQTWDkPsG2BHqfDUx6taJ", "80000000,103000000;50000000;105000000;30000000,110000000;10000000,120000000;0,200000000"),
-      IntegerEntry("global_balance_AP4Cb5xLYGH6ZigHreCZHoXpQTWDkPsG2BHqfDUx6taJ", Scale8)
+      StringEntry("setup_targets_9wc3LXNA4TEBsXyKtoLE9mrbDD7WMHXvXrCjZvabLAsi", "80000000,103000000;50000000,105000000;30000000,110000000;10000000,120000000;0,200000000"),
+      StringEntry("setup_targets_AP4Cb5xLYGH6ZigHreCZHoXpQTWDkPsG2BHqfDUx6taJ", "80000000,103000000;50000000,105000000;30000000,110000000;10000000,120000000;0,200000000")
     ]
   }
 }
@@ -52,8 +50,8 @@ func init() = {
 
 @Callable(i)
 func doSwap(asset0Str: String, asset1Str: String, amount: Int, route: String) = {
-  let asset0Bal = getInteger("global_balance_"+asset0Str).valueOrErrorMessage("asset not supported " + asset0Str)
-  let asset1Bal = getInteger("global_balance_"+asset1Str).valueOrErrorMessage("asset not supported " + asset1Str)
+  let asset0Bal = getBalance(asset0Str)
+  let asset1Bal = getBalance(asset1Str)
   let currentRatio = fraction(asset0Bal, Scale8, asset1Bal+asset0Bal)
   let targetReturn = getTargetReturn(asset0Str, currentRatio)
 
@@ -68,10 +66,7 @@ func doSwap(asset0Str: String, asset1Str: String, amount: Int, route: String) = 
   else if (fraction(asset1BalChange, Scale8, amount) < targetReturn) then { throw("swap premium is not enough to perform arbitrage") }
   else {
 
-    [
-      IntegerEntry("global_balance_"+asset0Str, asset0Bal + amount),
-      IntegerEntry("global_balance_"+asset1Str, asset1Bal + asset1BalChange)
-    ]
+    []
 
   }
 }
