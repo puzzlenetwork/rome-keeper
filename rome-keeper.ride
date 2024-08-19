@@ -2,13 +2,14 @@
 {-# CONTENT_TYPE DAPP #-}
 {-# SCRIPT_TYPE ACCOUNT #-}
 
-let VERSION = "RK-1.0.3"
+let VERSION = "RK-1.0.4"
 
 let Scale8 = 100000000
 let Scale6 = 1000000
 
 let aggregatorAddress = getString("setup_aggregator").valueOrElse("").addressFromString().valueOrElse(Address(base58'3PGFHzVGT4NTigwCKP1NcwoXkodVZwvBuuU'))
 let maxSwapAmount = getInteger("setup_maxSwapAmount").valueOrElse(10000000)
+let maxLPCap = getInteger("setup_maxLPCap").valueOrElse(20000 * Scale6)
 
 func getAssetString(assetId: ByteVector|Unit) = {
   match assetId {
@@ -59,7 +60,7 @@ func init() = {
       StringEntry("setup_lpId", lpId.toBase58String()),
       StringEntry("setup_assets", "9wc3LXNA4TEBsXyKtoLE9mrbDD7WMHXvXrCjZvabLAsi,AP4Cb5xLYGH6ZigHreCZHoXpQTWDkPsG2BHqfDUx6taJ"),
       StringEntry("setup_targets_9wc3LXNA4TEBsXyKtoLE9mrbDD7WMHXvXrCjZvabLAsi", "80000000,103000000;50000000,105000000;30000000,110000000;10000000,120000000;0,200000000"),
-      StringEntry("setup_targets_AP4Cb5xLYGH6ZigHreCZHoXpQTWDkPsG2BHqfDUx6taJ", "80000000,103000000;50000000,105000000;30000000,110000000;10000000,120000000;0,200000000")
+      StringEntry("setup_targets_AP4Cb5xLYGH6ZigHreCZHoXpQTWDkPsG2BHqfDUx6taJ", "80000000,100000000;50000000,100000000;30000000,101000000;10000000,110000000;0,150000000")
     ]
   }
 }
@@ -93,17 +94,19 @@ func doSwap(asset0Str: String, asset1Str: String, amount: Int, route: String) = 
 func mintLP() = {
   let assetId = i.payments[0].assetId
   let amount = i.payments[0].amount
+  let quantity = getLPQuantity()
+  let toMint = fraction(amount, Scale6, getLPContractPrice())
 
   if (getStringValue("setup_assets").indexOf(assetId.getAssetString()) == unit) then {throw("wrong asset attached")}
+  else if ((quantity + toMint) > maxLPCap) then {throw("LP cap reached")}
   else {
     
     let lpId = getStringValue("setup_lpId").fromBase58String()
-    let quant = fraction(amount, Scale6, getLPContractPrice())
-    let reissue = Reissue(lpId, quant, true)
+    let reissue = Reissue(lpId, toMint, true)
 
     [
       reissue,
-      ScriptTransfer(i.caller, quant, lpId)
+      ScriptTransfer(i.caller, toMint, lpId)
     ]
 
   }
@@ -136,5 +139,26 @@ func updateInt(key: String, val: Int) = {
       IntegerEntry(key, val)
     ]
   }
+}
+
+@Callable(i)
+func getRKPrice(debug: Boolean) = {
+  let res = getLPContractPrice()
+  if (debug) then { throw(res.toString()) } else { ([], res)}
+}
+
+@Callable(i)
+func getTargets(debug: Boolean) = {
+  let assets = getStringValue("setup_assets").split(",")
+  let asset0Bal = getBalance(assets[0])
+  let asset1Bal = getBalance(assets[1])
+
+  let currentRatio = fraction(asset0Bal, Scale8, asset1Bal+asset0Bal)
+  let targetReturn = getTargetReturn(assets[0], currentRatio)
+
+  let currentRatioRev = fraction(asset1Bal, Scale8, asset1Bal+asset0Bal)
+  let targetReturnRev = getTargetReturn(assets[1], currentRatio)
+
+  if (debug) then { throw(targetReturn.toString() + "," + targetReturnRev.toString()) } else { ([], (targetReturn, targetReturnRev))}
 }
         
