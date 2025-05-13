@@ -2,7 +2,7 @@
 {-# CONTENT_TYPE DAPP #-}
 {-# SCRIPT_TYPE ACCOUNT #-}
 
-let VERSION = "RK-1.0.4"
+let VERSION = "RK-1.0.5"
 
 let Scale8 = 100000000
 let Scale6 = 1000000
@@ -81,6 +81,8 @@ func doSwap(asset0Str: String, asset1Str: String, amount: Int, route: String) = 
   strict asset1BalChange = getBalance(asset1Str) - asset1BalBefore
 
   if (maxSwapAmount < amount) then {throw("amount to swap exceeds a limit")}
+  else if (getString("setup_isPaused").valueOrElse("") != "") then {throw("contract is paused")}
+  else if (getString("setup_assets").valueOrElse("").indexOf(asset0Str) == unit || getString("setup_assets").valueOrElse("").indexOf(asset1Str) == unit) then {throw("wrong asset provided")}
   else if (fraction(asset1BalChange, Scale8, amount) < targetReturn) then { throw("swap premium is not enough to perform arbitrage") }
   else {
 
@@ -98,6 +100,7 @@ func mintLP() = {
   let toMint = fraction(amount, Scale6, getLPContractPrice())
 
   if (getStringValue("setup_assets").indexOf(assetId.getAssetString()) == unit) then {throw("wrong asset attached")}
+  else if (getString("setup_isPaused").valueOrElse("") != "") then {throw("contract is paused")}
   else if ((quantity + toMint) > maxLPCap) then {throw("LP cap reached")}
   else {
     
@@ -161,4 +164,3 @@ func getTargets(debug: Boolean) = {
 
   if (debug) then { throw(targetReturn.toString() + "," + targetReturnRev.toString()) } else { ([], (targetReturn, targetReturnRev))}
 }
-        
