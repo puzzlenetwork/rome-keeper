@@ -1,8 +1,10 @@
 {-# STDLIB_VERSION 6 #-}
 {-# CONTENT_TYPE DAPP #-}
 {-# SCRIPT_TYPE ACCOUNT #-}
+{-# IMPORT artifacts/mainnet.ride #-}
 
-let VERSION = "RK-1.0.5"
+
+let VERSION = "RK-1.0.7"
 
 let Scale8 = 100000000
 let Scale6 = 1000000
@@ -31,7 +33,7 @@ func getTargetReturn(assetFrom: String, assetsRatio: Int) = {
   let ratios = getStringValue("setup_targets_"+assetFrom).split(";") # "80000000,103000000;50000000,105000000;30000000,110000000;10000000,120000000;0,200000000"
   func f(accum: Int, next: String) = {
     let li = next.split(",")
-    if (assetsRatio < li[0].parseIntValue()) then {li[1].parseIntValue()} else {accum}
+    if (assetsRatio <= li[0].parseIntValue()) then {li[1].parseIntValue()} else {accum}
   }
 
   FOLD<10>(ratios, 100000000, f)
@@ -41,11 +43,16 @@ func getLPQuantity() = {
   assetInfo(getStringValue("setup_lpId").fromBase58String()).value().quantity
 }
 
-func getLPContractPrice() = {
+func getLPContractPrice(changedAmount: Int) = {
   let assets = getStringValue("setup_assets").split(",")
-  let treasury = getBalance(assets[0].value()) + getBalance(assets[1].value())
+  let treasury = getBalance(assets[0].value()) + getBalance(assets[1].value()) + changedAmount
   let quant = getLPQuantity()
   if (quant == 0) then Scale6 else fraction(treasury, Scale6, quant)
+}
+
+func getStatsEntry () = {
+  let assets = split(getStringValue("setup_assets"), ",")
+  StringEntry("stats_" + toString(height), toString(getLPQuantity()) + "__" + toString(getBalance(value(assets[0]))) + "__" + toString(getBalance(value(assets[1]))))
 }
 
 
@@ -57,6 +64,7 @@ func init() = {
     let lpId = lp.calculateAssetId()
 
     [
+      lp,
       StringEntry("setup_lpId", lpId.toBase58String()),
       StringEntry("setup_assets", "9wc3LXNA4TEBsXyKtoLE9mrbDD7WMHXvXrCjZvabLAsi,AP4Cb5xLYGH6ZigHreCZHoXpQTWDkPsG2BHqfDUx6taJ"),
       StringEntry("setup_targets_9wc3LXNA4TEBsXyKtoLE9mrbDD7WMHXvXrCjZvabLAsi", "80000000,103000000;50000000,105000000;30000000,110000000;10000000,120000000;0,200000000"),
@@ -86,7 +94,9 @@ func doSwap(asset0Str: String, asset1Str: String, amount: Int, route: String) = 
   else if (fraction(asset1BalChange, Scale8, amount) < targetReturn) then { throw("swap premium is not enough to perform arbitrage") }
   else {
 
-    []
+    [
+      getStatsEntry()
+    ]
 
   }
 }
@@ -97,7 +107,7 @@ func mintLP() = {
   let assetId = i.payments[0].assetId
   let amount = i.payments[0].amount
   let quantity = getLPQuantity()
-  let toMint = fraction(amount, Scale6, getLPContractPrice())
+  let toMint = fraction(amount, Scale6, getLPContractPrice(-amount))
 
   if (getStringValue("setup_assets").indexOf(assetId.getAssetString()) == unit) then {throw("wrong asset attached")}
   else if (getString("setup_isPaused").valueOrElse("") != "") then {throw("contract is paused")}
@@ -118,8 +128,9 @@ func mintLP() = {
 
 @Callable(i)
 func redeemLP() = {
-  [
-  ]
+  throw("redeems not available yet")
+  # [
+  # ]
 }
 
 
@@ -146,7 +157,7 @@ func updateInt(key: String, val: Int) = {
 
 @Callable(i)
 func getRKPrice(debug: Boolean) = {
-  let res = getLPContractPrice()
+  let res = getLPContractPrice(0)
   if (debug) then { throw(res.toString()) } else { ([], res)}
 }
 
@@ -160,7 +171,7 @@ func getTargets(debug: Boolean) = {
   let targetReturn = getTargetReturn(assets[0], currentRatio)
 
   let currentRatioRev = fraction(asset1Bal, Scale8, asset1Bal+asset0Bal)
-  let targetReturnRev = getTargetReturn(assets[1], currentRatio)
+  let targetReturnRev = getTargetReturn(assets[1], currentRatioRev)
 
   if (debug) then { throw(targetReturn.toString() + "," + targetReturnRev.toString()) } else { ([], (targetReturn, targetReturnRev))}
 }
