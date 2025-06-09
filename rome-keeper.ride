@@ -4,7 +4,7 @@
 {-# IMPORT artifacts/mainnet.ride #-}
 
 
-let VERSION = "RK-1.0.9"
+let VERSION = "RK-1.1.0"
 
 let Scale8 = 100000000
 let Scale6 = 1000000
@@ -128,7 +128,6 @@ func mintLP() = {
 
 @Callable(i)
 func redeemLP() = {
-  # throw("redeems not available yet")
   let lpId = getString("setup_lpId").valueOrElse("").fromBase58String()
   let attachedAssetId = i.payments[0].assetId
   let amount = i.payments[0].amount
@@ -142,7 +141,7 @@ func redeemLP() = {
   let amountToReturn = fraction(amount, getLPContractPrice(0), Scale6)
 
   if (attachedAssetId != lpId) then {throw("wrong asset attached")}
-  else if (i.caller.toString() != "3P9xX849YJXg7C87v82cDyDy5VhKiPJpHo8") then {throw("whitelist only")}
+  # else if (i.caller.toString() != "3P9xX849YJXg7C87v82cDyDy5VhKiPJpHo8") then {throw("whitelist only")}
   else if (getString("setup_isPaused").valueOrElse("") != "") then {throw("contract is paused")}
   else {
     [
